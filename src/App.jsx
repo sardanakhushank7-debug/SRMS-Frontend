@@ -94,6 +94,7 @@ const categories = [
 ];
 
 function App() {
+  // Menu and navigation state keep the interface interactive without a backend.
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchText, setSearchText] = useState('');
   const [vegetarianOnly, setVegetarianOnly] = useState(false);
@@ -101,7 +102,17 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notice, setNotice] = useState('');
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [customer, setCustomer] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    orderType: 'Pickup',
+    address: '',
+  });
 
+  // Filter the menu using the selected category, search text, and vegetarian option.
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
       const matchesCategory =
@@ -119,6 +130,7 @@ function App() {
     });
   }, [activeCategory, searchText, vegetarianOnly]);
 
+  // Calculate the cart badge count and subtotal from the current cart items.
   const cartCount = cart.reduce(
     (total, item) => total + item.quantity,
     0
@@ -129,6 +141,7 @@ function App() {
     0
   );
 
+  // Add a new item or increase the quantity if it is already in the cart.
   function addToCart(menuItem) {
     setCart((currentCart) => {
       const existingItem = currentCart.find(
@@ -150,6 +163,7 @@ function App() {
     setTimeout(() => setNotice(''), 2500);
   }
 
+  // Update an item's quantity; remove it automatically when it reaches zero.
   function changeQuantity(id, amount) {
     setCart((currentCart) =>
       currentCart
@@ -169,12 +183,44 @@ function App() {
     setMobileMenuOpen(false);
   }
 
+  // Open the checkout form only when there is at least one item in the cart.
   function handleCheckout() {
     if (cart.length === 0) return;
 
-    setNotice('Order demo complete! Checkout will be added in the next stage.');
     setCartOpen(false);
-    setTimeout(() => setNotice(''), 3500);
+    setCheckoutOpen(true);
+  }
+
+  // Keep form inputs in one object so each field can update independently.
+  function updateCustomer(event) {
+    const { name, value } = event.target;
+    setCustomer((currentCustomer) => ({
+      ...currentCustomer,
+      [name]: value,
+    }));
+  }
+
+  // Simulate placing an order on the frontend; no payment or server request is made.
+  function placeOrder(event) {
+    event.preventDefault();
+
+    if (cart.length === 0) return;
+
+    const tax = cartTotal * 0.05;
+    const deliveryFee = customer.orderType === 'Delivery' ? 4.99 : 0;
+
+    setConfirmedOrder({
+      number: `SV-${Date.now().toString().slice(-6)}`,
+      customer: { ...customer },
+      items: [...cart],
+      total: cartTotal + tax + deliveryFee,
+      subtotal: cartTotal,
+      tax,
+      deliveryFee,
+    });
+
+    setCart([]);
+    setCheckoutOpen(false);
   }
 
   return (
@@ -511,6 +557,107 @@ function App() {
               </>
             )}
           </aside>
+        </div>
+      )}
+
+      {checkoutOpen && (
+        <div className="cart-overlay checkout-overlay" onClick={() => setCheckoutOpen(false)}>
+          <section
+            className="checkout-panel"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkout-title"
+          >
+            <div className="cart-header">
+              <div>
+                <span className="eyebrow">ONE LAST STEP</span>
+                <h2 id="checkout-title">Checkout</h2>
+              </div>
+              <button className="close-button" onClick={() => setCheckoutOpen(false)} aria-label="Close checkout">✕</button>
+            </div>
+
+            <form className="checkout-form" onSubmit={placeOrder}>
+              <label>
+                Full name
+                <input name="name" value={customer.name} onChange={updateCustomer} required />
+              </label>
+              <label>
+                Email address
+                <input name="email" type="email" value={customer.email} onChange={updateCustomer} required />
+              </label>
+              <label>
+                Phone number
+                <input name="phone" type="tel" value={customer.phone} onChange={updateCustomer} required />
+              </label>
+              <label>
+                Order type
+                <select name="orderType" value={customer.orderType} onChange={updateCustomer}>
+                  <option value="Pickup">Pickup</option>
+                  <option value="Delivery">Delivery</option>
+                </select>
+              </label>
+              {customer.orderType === 'Delivery' && (
+                <label>
+                  Delivery address
+                  <textarea name="address" value={customer.address} onChange={updateCustomer} required rows="3" />
+                </label>
+              )}
+
+              <div className="checkout-total">
+                <div><span>Subtotal</span><strong>${cartTotal.toFixed(2)}</strong></div>
+                <div><span>Estimated tax (5%)</span><strong>${(cartTotal * 0.05).toFixed(2)}</strong></div>
+                <div><span>Delivery fee</span><strong>${(customer.orderType === 'Delivery' ? 4.99 : 0).toFixed(2)}</strong></div>
+                <div className="checkout-grand-total">
+                  <span>Total</span>
+                  <strong>${(cartTotal + cartTotal * 0.05 + (customer.orderType === 'Delivery' ? 4.99 : 0)).toFixed(2)}</strong>
+                </div>
+              </div>
+              <button className="primary-button checkout-button" type="submit">
+                Place demo order <span>→</span>
+              </button>
+              <p className="demo-note">Student demo only. No payment details are collected.</p>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {confirmedOrder && (
+        <div className="cart-overlay" onClick={() => setConfirmedOrder(null)}>
+          <section
+            className="checkout-panel order-confirmation"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-confirmation-title"
+          >
+            <div className="success-mark">✓</div>
+            <span className="eyebrow">ORDER RECEIVED</span>
+            <h2 id="order-confirmation-title">Thank you, {confirmedOrder.customer.name}!</h2>
+            <p>Your demo order has been created successfully.</p>
+            <div className="order-number">
+              <span>Order number</span>
+              <strong>{confirmedOrder.number}</strong>
+            </div>
+            <div className="confirmed-order-items">
+              {confirmedOrder.items.map((item) => (
+                <div key={item.id}>
+                  <span>{item.quantity} × {item.name}</span>
+                  <strong>${(item.price * item.quantity).toFixed(2)}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="checkout-total">
+              <div><span>Subtotal</span><strong>${confirmedOrder.subtotal.toFixed(2)}</strong></div>
+              <div><span>Estimated tax</span><strong>${confirmedOrder.tax.toFixed(2)}</strong></div>
+              <div><span>Delivery fee</span><strong>${confirmedOrder.deliveryFee.toFixed(2)}</strong></div>
+              <div className="checkout-grand-total"><span>Total</span><strong>${confirmedOrder.total.toFixed(2)}</strong></div>
+            </div>
+            <p className="demo-note">This order is only stored in the current page state, not sent to a restaurant server.</p>
+            <button className="primary-button checkout-button" onClick={() => setConfirmedOrder(null)}>
+              Back to Savor <span>→</span>
+            </button>
+          </section>
         </div>
       )}
     </div>
